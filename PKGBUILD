@@ -2,7 +2,7 @@
 pkgname=ercf
 pkgver=0.5.0
 pkgrel=1
-pkgdesc="Easy Config Editor for Hyprland - графический редактор конфигов"
+pkgdesc="Config Editor for Hyprland"
 arch=('any')
 url="https://github.com/MyHa-RX/ERCF"
 license=('GPL3')
@@ -11,7 +11,6 @@ source=("file://ERCF"
         "file://ercf.desktop"
         "file://ERCF.png"
         "file://README.md"
-        "file://LICENSE")
 sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
 
 package() {
