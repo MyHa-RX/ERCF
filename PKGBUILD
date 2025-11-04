@@ -1,34 +1,20 @@
-# Maintainer: MyHa-RX <github@myha-rx>
+# Maintainer: MyHa-RX
 pkgname=ercf
 pkgver=1.0.0
 pkgrel=1
-pkgdesc="Easy Config Editor for Hyprland - графический редактор конфигов"
+pkgdesc="Easy Config Editor for Hyprland"
 arch=('any')
 url="https://github.com/MyHa-RX/ERCF"
 license=('GPL3')
 depends=('python' 'python-pyqt6' 'hyprpaper' 'git' 'hyprland')
-source=("$pkgname-$pkgver.tar.gz::https://github.com/MyHa-RX/ERCF/archive/refs/heads/main.tar.gz")
-sha256sums=('SKIP')
 
 package() {
-    cd "$srcdir/ERCF-main"
+    cd "$srcdir/../.."
     
+    install -Dm755 ERCF/ERCF "$pkgdir/usr/bin/ERCF"
+    install -Dm644 ERCF/ercf.desktop "$pkgdir/usr/share/applications/ercf.desktop"
     
-    install -Dm755 ERCF "$pkgdir/usr/bin/ERCF"
-    
-    
-    install -Dm644 ercf.desktop "$pkgdir/usr/share/applications/ercf.desktop"
-    
-    
-    if [ -f "ERCF.png" ]; then
-        install -Dm644 ERCF.png "$pkgdir/usr/share/icons/ERCF.png"
-    fi
-    
-    
-    if [ -f "README.md" ]; then
-        install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
-    fi
-    if [ -f "LICENSE" ]; then
-        install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    if [ -f "ERCF/ERCF.png" ]; then
+        install -Dm644 ERCF/ERCF.png "$pkgdir/usr/share/icons/ERCF.png"
     fi
 }
