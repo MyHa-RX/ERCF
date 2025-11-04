@@ -1,6 +1,6 @@
 # Maintainer: MyHa-RX <github@myha-rx>
 pkgname=ercf
-pkgver=1.0.0
+pkgver=0.5.0
 pkgrel=1
 pkgdesc="Easy Config Editor for Hyprland - графический редактор конфигов"
 arch=('any')
