@@ -2,7 +2,7 @@
 Version=0.5.0
 Type=Application
 Name=ERCF
-Name[ru]=ERCF - Редактор конфигов
+Name[ru]=ERCF
 Comment=Config Editor for Hyprland
 Comment[ru]=редактор конфигов для Hyprland
 Exec=ERCF
