@@ -1,0 +1,507 @@
+#!/usr/bin/env python3
+import sys, subprocess, os, getpass
+from PyQt6.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QPushButton,
+    QTextEdit, QFileDialog, QMessageBox, QInputDialog,
+    QDialog, QLabel, QScrollArea, QGridLayout
+)
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt, QTimer
+
+class ImagePreviewDialog(QDialog):
+    def __init__(self, image_paths):
+        super().__init__()
+        self.setWindowTitle("Выберите обои")
+        self.selected_image = None
+
+        layout = QVBoxLayout()
+        scroll = QScrollArea()
+        widget = QWidget()
+        grid = QGridLayout()
+        self.image_buttons = []
+
+        for i, img_path in enumerate(image_paths):
+            pixmap = QPixmap(img_path).scaled(150, 150, Qt.AspectRatioMode.KeepAspectRatio)
+            label = QLabel()
+            label.setPixmap(pixmap)
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            btn = QPushButton(os.path.basename(img_path))
+            btn.clicked.connect(lambda checked, path=img_path: self.select_image(path))
+            self.image_buttons.append((btn, img_path))
+            grid.addWidget(label, i // 4, (i % 4)*2, 1, 1)
+            grid.addWidget(btn, i // 4, (i % 4)*2 + 1, 1, 1)
+
+        widget.setLayout(grid)
+        scroll.setWidget(widget)
+        scroll.setWidgetResizable(True)
+
+        layout.addWidget(scroll)
+        self.setLayout(layout)
+
+    def select_image(self, image_path):
+        self.selected_image = image_path
+        self.accept()
+
+class ERCF(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Редактор конфиг файлов")
+        self.resize(300, 200)
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1a1b26;
+                color: #ffffff;
+                font-family: Jetbrains Mono;
+                font-size: 20px;
+            }
+            QPushButton {
+                background-color: #1a1b26;
+                border: none;
+                padding: 40px 70px;
+            }
+            QPushButton:hover {
+                background-color: #c0caf5;
+                color: #000000
+                
+            }
+            QTextEdit {
+                background-color: #1e1e1e;
+                color: #ffffff;
+                border: 1px solid #555555;
+            }
+        """)
+        icon_edit = '\uf044'
+        icon_git = '\uf1d2'
+        icon_wp = '\udb83\ude09'
+        icon_hp = '\uf359'
+
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
+
+        self.open_btn = QPushButton("Открыть файл")
+        self.save_btn = QPushButton("Сохранить файл")
+        self.cn_btn = QPushButton("Создать новый файл")
+        self.save_btn.setVisible(False)
+        self.open_btn.setVisible(False)
+        self.cn_btn.setVisible(False)
+
+        self.filed_btn = QPushButton(f"{icon_edit} Редактор файла")
+
+        self.close_edit_btn = QPushButton("Закрыть редактор")
+        self.close_edit_btn.setVisible(False)
+
+        self.hypr_btn = QPushButton("HyprlandConfig")
+        self.hyprlockC_btn = QPushButton("HyprlockConfig")
+        self.hyprlockC_btn.setVisible(False)
+        self.hypr_btn.setVisible(False)
+
+        self.hyprland_btn = QPushButton(f"{icon_hp} Hyprland")
+
+        self.select_source_btn = QPushButton("Выбрать файл для замены")
+        self.select_target_btn = QPushButton("Выбрать файл-заменитель")
+        self.select_source_btn.setVisible(False)
+        self.select_target_btn.setVisible(False)
+
+
+        self.git_install_btn = QPushButton(f"{icon_git} Установить пакеты с Git")
+        self.select_wallpapers_btn = QPushButton(f"{icon_wp} Выбрать обои из папки")
+
+        self.layout.addWidget(self.filed_btn)
+        self.layout.addWidget(self.open_btn)
+        self.layout.addWidget(self.save_btn)
+        self.layout.addWidget(self.select_source_btn)
+        self.layout.addWidget(self.select_target_btn)
+        self.layout.addWidget(self.git_install_btn)
+        self.layout.addWidget(self.select_wallpapers_btn)
+        self.layout.addWidget(self.close_edit_btn)
+        self.layout.addWidget(self.hypr_btn)
+        self.layout.addWidget(self.hyprland_btn)
+        self.layout.addWidget(self.hyprlockC_btn)
+        self.layout.addWidget(self.cn_btn)
+        self.text_editor = None
+
+        self.file_to_replace = None
+        self.file_replacement = None
+        self.current_file = None
+
+        self.wallpapers_dir = None
+        self.selected_wallpaper = None
+
+        self.filed_btn.clicked.connect(self.filed)
+        self.open_btn.clicked.connect(self.open_file)
+        self.save_btn.clicked.connect(self.save_file)
+        self.cn_btn.clicked.connect(self.create_new_file)
+        self.select_source_btn.clicked.connect(self.select_file_to_replace)
+        self.select_target_btn.clicked.connect(self.select_file_replacement)
+        self.git_install_btn.clicked.connect(self.install_packages_from_git)
+        self.select_wallpapers_btn.clicked.connect(self.choose_wallpapers_directory)
+        self.close_edit_btn.clicked.connect(self.close_text_editor)
+        self.hypr_btn.clicked.connect(self.hypr_config)
+        self.hyprlockC_btn.clicked.connect(self.hyprlock_config)
+        self.hyprland_btn.clicked.connect(self.hyprland)
+        QTimer.singleShot(100, self.center_window_hyprland)
+
+    @staticmethod
+    def center_window_hyprland():
+        try:
+            result = subprocess.run(['hyprctl', 'monitors'],
+                                    capture_output=True, text=True)
+            if result.returncode == 0:
+                lines = result.stdout.split('\n')
+                x = 0
+                width = 1920
+                height = 1080
+                for line in lines:
+                    if 'at' in line and 'size' in line:
+                        parts = line.split()
+                        for i, part in enumerate(parts):
+                            if part == 'at' and i + 1 < len(parts):
+                                x = int(parts[i + 1].replace(',', ''))
+                            if part == 'size' and i + 1 < len(parts):
+                                width = int(parts[i + 1].replace(',', ''))
+                            if part == 'size' and i + 2 < len(parts):
+                                height = int(parts[i + 2])
+                        center_x = x + (width - 600) // 2
+                        center_y = (height - 400) // 2
+                        subprocess.run([
+                            'hyprctl', 'dispatch',
+                            'movewindow', 'exact',
+                            f'{center_x}', f'{center_y}'
+                        ])
+                        break
+        except Exception as e:
+            print(f"Ошибка центрирования: {e}")
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        QTimer.singleShot(50, self.make_window_float)
+
+    def make_window_float(self):
+        try:
+            subprocess.run([
+                'hyprctl', 'dispatch',
+                'togglefloating', 'active'
+            ])
+            QTimer.singleShot(100, self.center_window_hyprland)
+
+        except Exception as e:
+            print(f"Ошибка создания плавающего окна: {e}")
+
+    def create_new_file(self):
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Создать новый файл",
+            "",
+            "Все файлы (*)"
+        )
+
+        if not filename:
+            return
+
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write("")
+
+            if self.text_editor is None:
+                self.text_editor = QTextEdit()
+                self.layout.addWidget(self.text_editor)
+
+            self.text_editor.setPlainText("")
+            self.current_file = filename
+
+
+            self.select_source_btn.setVisible(False)
+            self.select_target_btn.setVisible(False)
+            self.select_wallpapers_btn.setVisible(False)
+            self.git_install_btn.setVisible(False)
+            self.save_btn.setVisible(True)
+            self.close_edit_btn.setVisible(True)
+            self.hypr_btn.setVisible(False)
+            self.hyprland_btn.setVisible(False)
+            self.hyprlockC_btn.setVisible(False)
+            self.filed_btn.setVisible(False)
+            self.cn_btn.setVisible(False)
+
+            QMessageBox.information(self, "Успех", f"Файл создан:\n{filename}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось создать файл:\n{e}")
+
+    def open_file(self):
+        filename, _ = QFileDialog.getOpenFileName(self, "Открыть файл", "", "Все файлы (*)")
+        if filename:
+            with open(filename, 'r', encoding='utf-8') as f:
+                content = f.read()
+            if self.text_editor is None:
+                self.text_editor = QTextEdit()
+                self.layout.addWidget(self.text_editor)
+            self.text_editor.setPlainText(content)
+            self.current_file = filename
+            self.select_source_btn.setVisible(False)
+            self.select_target_btn.setVisible(False)
+            self.select_wallpapers_btn.setVisible(False)
+            self.git_install_btn.setVisible(False)
+            self.save_btn.setVisible(True)
+            self.close_edit_btn.setVisible(True)
+            self.hypr_btn.setVisible(False)
+            self.hyprland_btn.setVisible(False)
+            self.hyprlockC_btn.setVisible(False)
+            self.filed_btn.setVisible(False)
+            self.cn_btn.setVisible(False)
+
+    def hypr_config(self):
+        user_name = getpass.getuser()
+        filename = f"/home/{user_name}/.config/hypr/hyprland.conf"
+
+        if os.path.exists(filename):
+            with open(filename, 'r', encoding='utf-8') as f:
+                content = f.read()
+            if not hasattr(self, 'text_editor') or self.text_editor is None:
+                self.text_editor = QTextEdit()
+                self.layout.addWidget(self.text_editor)
+            self.text_editor.setPlainText(content)
+            self.current_file = filename
+
+
+            self.select_source_btn.setVisible(False)
+            self.select_target_btn.setVisible(False)
+            self.select_wallpapers_btn.setVisible(False)
+            self.git_install_btn.setVisible(False)
+            self.save_btn.setVisible(True)
+            self.close_edit_btn.setVisible(True)
+            self.hypr_btn.setVisible(False)
+            self.hyprland_btn.setVisible(False)
+            self.hyprlockC_btn.setVisible(False)
+            self.filed_btn.setVisible(False)
+            self.cn_btn.setVisible(False)
+        else:
+            print(f"Файл не найден: {filename}")
+
+    def hyprlock_config(self):
+        user_name = getpass.getuser()
+        filename = f"/home/{user_name}/.config/hypr/hyprlock.conf"
+
+        if os.path.exists(filename):
+            with open(filename, 'r', encoding='utf-8') as f:
+                content = f.read()
+            if not hasattr(self, 'text_editor') or self.text_editor is None:
+                self.text_editor = QTextEdit()
+                self.layout.addWidget(self.text_editor)
+            self.text_editor.setPlainText(content)
+            self.current_file = filename
+
+
+            self.select_source_btn.setVisible(False)
+            self.select_target_btn.setVisible(False)
+            self.select_wallpapers_btn.setVisible(False)
+            self.git_install_btn.setVisible(False)
+            self.save_btn.setVisible(True)
+            self.close_edit_btn.setVisible(True)
+            self.hypr_btn.setVisible(False)
+            self.hyprlockC_btn.setVisible(False)
+            self.hyprland_btn.setVisible(False)
+            self.filed_btn.setVisible(False)
+            self.cn_btn.setVisible(False)
+        else:
+            print(f"Файл не найден: {filename}")
+
+    def hyprland(self):
+
+            self.open_btn.setVisible(False)
+            self.select_source_btn.setVisible(False)
+            self.select_target_btn.setVisible(False)
+            self.select_wallpapers_btn.setVisible(False)
+            self.git_install_btn.setVisible(False)
+            self.save_btn.setVisible(False)
+            self.close_edit_btn.setVisible(True)
+            self.hypr_btn.setVisible(True)
+            self.hyprlockC_btn.setVisible(True)
+            self.hyprland_btn.setVisible(False)
+            self.filed_btn.setVisible(False)
+            self.cn_btn.setVisible(False)
+
+    def filed(self):
+
+            self.cn_btn.setVisible(True)
+            self.open_btn.setVisible(True)
+            self.select_source_btn.setVisible(True)
+            self.select_target_btn.setVisible(True)
+            self.select_wallpapers_btn.setVisible(False)
+            self.git_install_btn.setVisible(False)
+            self.save_btn.setVisible(False)
+            self.close_edit_btn.setVisible(True)
+            self.hypr_btn.setVisible(False)
+            self.hyprlockC_btn.setVisible(False)
+            self.hyprland_btn.setVisible(False)
+            self.filed_btn.setVisible(False)
+
+    def close_text_editor(self):
+        if self.text_editor:
+            self.text_editor.setParent(None)  #
+            self.text_editor.deleteLater()
+            self.text_editor = None
+        self.close_edit_btn.setVisible(False)
+        self.select_source_btn.setVisible(False)
+        self.select_target_btn.setVisible(False)
+        self.select_wallpapers_btn.setVisible(True)
+        self.git_install_btn.setVisible(True)
+        self.hypr_btn.setVisible(False)
+        self.hyprland_btn.setVisible(True)
+        self.hyprlockC_btn.setVisible(False)
+        self.open_btn.setVisible(False)
+        self.filed_btn.setVisible(True)
+        self.save_btn.setVisible(False)
+        self.cn_btn.setVisible(False)
+
+    def save_file(self):
+        if self.current_file and self.text_editor:
+            reply = QMessageBox.question(
+                self,
+                "Создать бэкап?",
+                "Хотите создать бэкап файла перед сохранением?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                backup_path = self.current_file + "(old)"
+                try:
+
+                    import shutil
+                    shutil.copy2(self.current_file, backup_path)
+                except Exception as e:
+                    QMessageBox.warning(self, "Ошибка при создании бэкапа", f"Не удалось создать бэкап: {e}")
+
+
+            try:
+                with open(self.current_file, 'w', encoding='utf-8') as f:
+                    f.write(self.text_editor.toPlainText())
+                QMessageBox.information(self, "Сохранено", "Файл сохранён.")
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить файл: {e}")
+
+    def select_file_to_replace(self):
+        filename, _ = QFileDialog.getOpenFileName(self, "Выбрать файл для замены")
+        if filename:
+            self.file_to_replace = filename
+
+    def select_file_replacement(self):
+        filename, _ = QFileDialog.getOpenFileName(self, "Выбрать файл-заменитель")
+        if filename:
+            self.file_replacement = filename
+
+    def install_packages_from_git(self):
+        url, ok = QInputDialog.getText(self, "Ввод URL Git", "Введите URL репозитория Git:")
+        if not ok or not url.strip():
+            QMessageBox.warning(self, "Отмена", "URL не был введен.")
+            return
+
+        directory = QFileDialog.getExistingDirectory(self, "Выберите директорию для установки")
+        if not directory:
+            QMessageBox.warning(self, "Отмена", "Директория не выбрана.")
+            return
+
+        import os
+        repo_name = os.path.splitext(os.path.basename(url.rstrip('/')))[0]
+        target_path = os.path.join(directory, repo_name)
+
+        try:
+            result = subprocess.run(['git', 'clone', url, target_path], capture_output=True, text=True)
+            if result.returncode == 0:
+                QMessageBox.information(self, "Успех", f"Репозиторий успешно клонирован в:\n{target_path}")
+            else:
+                QMessageBox.critical(self, "Ошибка клонирования", f"Не удалось клонировать репозиторий:\n{result.stderr}")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Произошла ошибка:\n{e}")
+
+    def choose_wallpapers_directory(self):
+        dir_path = QFileDialog.getExistingDirectory(self, "Выберите папку с обоями")
+        if dir_path:
+            self.wallpapers_dir = dir_path
+            self.open_image_selection()
+
+    def open_image_selection(self):
+        image_extensions = ('.png', '.jpg', '.jpeg', '.bmp', '.gif')
+        image_paths = [
+            os.path.join(self.wallpapers_dir, fname)
+            for fname in os.listdir(self.wallpapers_dir)
+            if fname.lower().endswith(image_extensions)
+        ]
+        if not image_paths:
+            QMessageBox.warning(self, "Нет изображений", "В выбранной папке не найдено изображений.")
+            return
+
+        dialog = ImagePreviewDialog(image_paths)
+        if dialog.exec():
+            selected_image = dialog.selected_image
+            if selected_image:
+                self.update_hyprpaper_config(selected_image)
+
+    def update_hyprpaper_config(self, image_path):
+        config_path = os.path.expanduser("~/.config/hypr/hyprpaper.conf")
+
+        if not os.path.exists(config_path):
+            QMessageBox.warning(self, "Файл не найден",
+                                f"Файл {config_path} не найден. Убедись, что Hyprpaper установлен и файл существует.")
+            return
+
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            new_lines = []
+            replaced_preload = False
+            replaced_wallpaper = False
+
+            for line in lines:
+                if line.strip().startswith("preload ="):
+                    filename = os.path.basename(image_path)
+                    new_lines.append(f"preload = ~/{filename}\n")
+                    replaced_preload = True
+                elif line.strip().startswith("wallpaper ="):
+                    filename = os.path.basename(image_path)
+                    new_lines.append(f"wallpaper = , ~/{filename}\n")
+                    replaced_wallpaper = True
+                else:
+                    new_lines.append(line)
+
+            if not replaced_preload:
+                new_lines.append(f"preload = ~/{os.path.basename(image_path)}\n")
+            if not replaced_wallpaper:
+                new_lines.append(f"wallpaper = , ~/{os.path.basename(image_path)}\n")
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                f.writelines(new_lines)
+            try:
+
+                subprocess.run(['pkill', 'hyprpaper'], capture_output=True)
+
+                import time
+                time.sleep(0.5)
+
+                subprocess.Popen(['hyprpaper'], start_new_session=True)
+
+                QMessageBox.information(self, "Обновлено",
+                                        "Конфигурация hyprpaper обновлена. Hyprpaper перезапущен.")
+            except Exception as restart_error:
+                QMessageBox.warning(self, "Предупреждение",
+                                    f"Конфигурация обновлена, но не удалось перезапустить hyprpaper: {restart_error}\n"
+                                    "Перезапусти hyprpaper вручную для применения изменений.")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось обновить файл: {e}")
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+
+    try:
+        icon_path = "/usr/share/icons/ERCF.png"
+        if os.path.exists(icon_path):
+            app.setWindowIcon(QIcon(icon_path))
+    except:
+        pass
+
+    editor = ERCF()
+    editor.show()
+    sys.exit(app.exec())

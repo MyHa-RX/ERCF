@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=0.5.0
+Type=Application
+Name=ERCF
+Name[ru]=ERCF - Редактор конфигов
+Comment=Config Editor for Hyprland
+Comment[ru]=редактор конфигов для Hyprland
+Exec=ERCF
+Icon=ERCF
+Terminal=false
+StartupNotify=true
+Categories=System;Settings;
+Keywords=hyprland;config;editor;ercf;
