@@ -1,3 +1,4 @@
+# Maintainer: MyHa-RX <github@myha-rx>
 pkgname=ercf
 pkgver=1.0.0
 pkgrel=1
@@ -6,11 +7,11 @@ arch=('any')
 url="https://github.com/MyHa-RX/ERCF"
 license=('GPL3')
 depends=('python' 'python-pyqt6' 'hyprpaper' 'git' 'hyprland')
-source=("$pkgname-$pkgver.tar.gz::https://github.com/MyHa-RX/ERCF/archive/$pkgver.tar.gz")
+source=("$pkgname-$pkgver.tar.gz::https://github.com/MyHa-RX/ERCF/archive/refs/heads/main.tar.gz")
 sha256sums=('SKIP')
 
 package() {
-    cd "$srcdir/ERCF-$pkgver"
+    cd "$srcdir/ERCF-main"
     
     
     install -Dm755 ERCF "$pkgdir/usr/bin/ERCF"
