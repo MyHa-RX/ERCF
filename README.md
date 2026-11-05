@@ -7,6 +7,8 @@
 - Редактирование Файлов
 - Управление обоями hyprpaper
 - Установка пакетов из Git
+- Автоматическая установка dotfiles с github
+- Быстрая настройка конфигов из директории
 
 ## Установка на Arch Linux
 - sudo pacman -S python python-pyqt6 git
